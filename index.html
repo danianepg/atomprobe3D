@@ -1,0 +1,375 @@
+﻿<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+    <title>Web Based Visualization for Atom Probe Data</title>
+    <link rel="stylesheet" media="all" type="text/css" href="styles.css" />
+
+    <script src="js/three.js"></script>
+    <script src="js/OrbitAndPanControls.new.js"></script>
+    <script src="js/jdataview.js"></script>
+    <script src="js/jquery-2.1.0.js"></script>
+    <script src="js/drawingWebGL.js"></script>
+    <script src="js/readBinaryData.js"></script>
+    <script src="js/readData.js"></script>
+    <script src="js/scriptsTela.js"></script>
+    <script src="js/OrnlRng.js"></script>
+
+    <script>
+        var container, stats;
+        var camera, scene, renderer;
+        var canvasWidth, canvasHeight;
+        var cameraControls, effectController;
+        var clock = new THREE.Clock();
+
+        var clearColor = 0xdddddd;
+
+        var fov = 45;
+        var near = 1;
+        var far = 60000;
+        var worldSize = 10000;
+
+         //var objectsInScene = Array();
+
+        var countObjs;
+        var mat3D;
+
+        function init() {
+
+            var container = document.getElementById("container");
+            window.addEventListener("resize", resize);
+
+            canvasWidth = 480;
+            canvasHeight = 480;
+
+            initRenderer();
+            initCamera();
+            initScene();
+        }
+
+        function initRenderer() {
+            renderer = new THREE.WebGLRenderer({
+                antialias: true
+            });
+            renderer.gammaInput = true;
+            renderer.gammaOutput = true;
+            renderer.setClearColor(clearColor, 1.0);
+
+            renderer.setSize(canvasWidth, canvasHeight);
+        }
+
+        function initCamera() {
+
+            var canvasRatio = canvasWidth / canvasHeight;
+            camera = new THREE.PerspectiveCamera(fov, canvasRatio, near, far);
+            camera.position.set(0, 0, -25);
+
+            cameraControls = new THREE.OrbitAndPanControls(camera, renderer.domElement);
+            cameraControls.target.set(0, 0, 0);
+        }
+
+        function initScene() {
+
+            container = document.createElement('div');
+            document.body.appendChild(container);
+
+            scene = new THREE.Scene();
+            createLights();
+            //createObjects(null);
+        }
+
+        function createLights() {
+            var ambientLight = new THREE.AmbientLight(0x333333);
+            scene.add(ambientLight);
+
+            var dirLight = new THREE.DirectionalLight(0xffffff, 1);
+            dirLight.shadowCameraVisible = true;
+            dirLight.color.setHSL(0.1, 1, 0.95);
+            dirLight.position.set(200, 200, 200);
+            scene.add(dirLight);
+        }
+
+        function createObjects(mat3D) {
+
+            if (this.mat3D == null) {
+                this.mat3D = mat3D;
+            }
+
+            clearScene();
+
+            // 0xff0000
+            var colorObj = new THREE.Color("#C6C6C6");
+            var colorObj1 = new THREE.Color(337, 0.72, 0.57);
+            //var colorObj1 = new THREE.Color("#d62598");
+            var colorObj2 = 0xff0000;
+
+            var atomSize = 0.5;
+            var atomSizeField = document.getElementById('atomSize').value;
+
+            if (atomSizeField != "") {
+                try {
+                    atomSize = parseFloat(atomSizeField);
+                } catch (e) {
+                    atomSize = 0.5;
+                }
+            }
+
+            var geometry = new THREE.SphereGeometry(atomSize, 32, 16);
+            var material = new THREE.MeshLambertMaterial({
+                color: colorObj,
+                emissive: colorObj1,
+                ambient: colorObj2,
+                shading: THREE.SmoothShading
+            });
+
+            countObjs = mat3D.length;
+
+            for (row = 0; row < mat3D.length; ++row) {
+
+                var vetLin = new Array();
+                vetLin = mat3D[row];
+
+                if (vetLin.length > 6) {
+                    colorObj1 = new THREE.Color(parseFloat(vetLin[4]), parseFloat(vetLin[5]), parseFloat(vetLin[6]));
+					
+					//document.write("<br>"+vetLin[4]+" - " + vetLin[5]+" - " +vetLin[6] );
+
+                    material = new THREE.MeshLambertMaterial({
+                        color: colorObj,
+                        emissive: colorObj1,
+                        ambient: colorObj2,
+                        shading: THREE.SmoothShading
+                    });
+                }
+
+                var mesh = new THREE.Mesh(geometry, material);
+                mesh.position = new THREE.Vector3(vetLin[0] * 2, vetLin[1] * 2, vetLin[2] * 2);
+                mesh.name = row;
+                scene.add(mesh);
+
+            }
+        }
+
+        function resize() {
+            var width = window.innerWidth;
+            var height = window.innerHeight;
+            renderer.setSize(width, height);
+
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+
+            render();
+        }
+
+        function addToDOM() {
+            //document.body.appendChild(renderer.domElement);
+            var div = document.getElementById("canvasContainer");
+            div.appendChild(renderer.domElement);
+        }
+
+        function updateCamera() {
+            camera.updateProjectionMatrix();
+        }
+
+        function animate() {
+            window.requestAnimationFrame(animate);
+            render();
+        }
+
+        function render() {
+            var delta = clock.getDelta();
+            cameraControls.update(delta);
+            update(delta);
+            renderer.render(scene, camera);
+        }
+
+        function update(delta) {
+            scene.updateMatrix();
+        }
+
+        function clearScene() {
+            for (i = 0; i < countObjs; i++) {
+                var object = scene.getObjectByName(i);
+
+                /*if (object.geometry) {
+                    object.geometry.dispose();
+				}
+				
+				if (object.material) {
+					object.material.dispose();
+				}
+				
+				if (object.dispose) {
+					object.dispose();
+                }*/
+
+                scene.remove(object);
+
+            }
+        }
+
+        function filterRange(ini, end, r, g, b) {
+
+            mat3DAux = new Array();
+            //alert(mat3D.length);
+
+            for (i = 0; i < mat3D.length; i++) {
+
+                var linArray = new Array();
+                linArray = mat3D[i];
+
+                // Classify the 4th position
+                posValue = (linArray[3]);
+
+                if (posValue >= ini && posValue < end) {
+
+                    linArray.push(r);
+                    linArray.push(g);
+                    linArray.push(b);
+                    mat3DAux.push(linArray);
+
+                }
+            }
+
+            //writeMat(mat3DAux);
+
+            //alert(mat3D.length);
+
+            clearScene();
+            createObjects(mat3DAux);
+
+        }
+    </script>
+</head>
+
+<body style="margin: 0px;">
+
+    <table width="900" align="center">
+        <tr>
+            <td colspan="2">
+                <div class="divRound style1" style="width:886px; text-align:center;">
+                    Web Based 3D Visualization for Atom Probe Data
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td width="32%" style="vertical-align: top;">
+
+                <div class="divRound">
+
+                    <table width="100%" border="0" cellpadding="5" cellspacing="0" class="tableBox" style="">
+                        <tr>
+                            <td width="36%" valign="top">Select a file</td>
+                            <td>
+                                <input type="file" id="files" name="file" />
+                                <input type="hidden" id="maxLoop" name="maxLoop" />
+                            </td>
+                        </tr>
+                        <tr>
+                            <td width="36%" valign="top">File type</td>
+                            <td style="vertical-align: top; align: left">
+                                <input name="fileType" id="fileType_pos" type="radio" value="POS" onchange="validaCampos();" />.pos
+                                <br/>
+                                <input name="fileType" id="fileType_xyz" type="radio" value="XYZ" checked="checked" onchange="validaCampos();" />.xyz
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td width="36%" valign="top">Atom size</td>
+                            <td style="vertical-align: top; align: left">
+                                <input name="atomSize" id="atomSize" type="text" value="0.1" />
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td valign="top">Load bytes</td>
+                            <td valign="bottom">
+                                <input type="text" name="dataStartByte" id="dataStartByte" style="width: 100px" />to
+                                <input type="text" name="dataEndByte" id="dataEndByte" style="width: 100px" />
+                            </td>
+                        </tr>
+                        <tr>
+                            <td valign="top">&nbsp;</td>
+                            <td>
+                                <input name="loadBytes" id="loadBytes" type="button" onclick="readPosXyz(false);" value="Load bytes" style="width:100px;" />or
+                                <input name="loadAll" type="button" onclick="readPosXyz(true);" value="Load entire file">
+                                <!--<br/>
+								<input name="clear" type="button" onclick="clearScene();" value="Clear Scene">-->
+                            </td>
+                        </tr>
+                        <tr>
+                            <td valign="top">&nbsp;</td>
+                            <td height="30">
+                                <!-- <div id="byte_range"></div>
+								<textarea rows="10" cols="20" id="byte_range" style="display:none"></textarea> -->
+                                <div id="byte_content"></div>
+                                <div id="progress_bar">
+                                    <div class="percent" id="percent">0%</div>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td valign="top" class="style3">Load configuration file</td>
+                            <td>
+                                <input type="file" id="configFile" name="configFile" />
+                                <input type="hidden" id="fileContent" name="fileContent" />
+                                <br />
+                                </br>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td valign="top" class="style3">&nbsp;</td>
+                            <td>
+                                <input type="button" name="loadConf" id="loadConf" value="Load" onclick="javascript:loadConf2();" />
+                            </td>
+                        </tr>
+                        <tr>
+                            <td valign="top" class="style3">Display ranges:</td>
+                            <td>
+                                <div id="rangeButtons" name="rangeButtons"></div>
+                                <span id="loadRangeInfo" style="font-style:italic">Load a rng file to be able to classify ranges!</span>	
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+                <br />
+                <div class="divRound" style="height:140px">
+                    <p style="font-style:italic">Javascript &amp; WebGL prototype
+					<br /> This application is supported by the browsers Mozilla Firefox and Google Chrome.
+					
+                    <br /><br />Developed by Daniane P Gomes; Anna V Ceguerra and Simon P Ringer</p>
+                    <p style="font-style:italic">Australian Centre for Microscopy &amp; Microanalysis, The University of Sydney, NSW 2006, Australia.</p>
+                    <p style="font-style:italic">Universidade de Caxias do Sul, RS, Brazil.</p>
+                </div>
+            </td>
+            <td width="68%" rowspan="2" align="left" valign="top">
+                <div id="canvasContainer">
+
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td valign="top" style="vertical-align: top;">
+                &nbsp;
+            </td>
+        </tr>
+    </table>
+
+    <script>
+        try {
+            init();
+            addToDOM();
+            animate();
+            validaCampos();
+        } catch (e) {
+            var errorReport = "Your program encountered an unrecoverable error, can not draw on canvas. Error was:<br/><br/>";
+            console.log(errorReport + e);
+        }
+		
+		//verificaBrowser();
+
+    </script>
+
+</body>
+
+</html>
