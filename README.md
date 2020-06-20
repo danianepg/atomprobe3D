@@ -8,7 +8,3 @@ To try it:
 * Run index.html.
 * Load a binary or text file.
 * Have fun rotating and zoom-ing the visualization.
-
-Building a continuous delivery pipeline for database migrations with GitLab and AWS
-
-@author Daniane P. Gomes
